@@ -18,6 +18,7 @@ def run_web():
 API_ID = 34452379
 API_HASH = '25dae3c45785a28864f4a594a296e128'
 STRING_SESSION = os.getenv("TG_STRING_SESSION")
+
 MANBA_ID = -1004423905908
 MANZILLAR_ID = [-1003922838589, -1002179183026]
 
@@ -25,30 +26,32 @@ async def start_bot():
     client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
     await client.connect()
     
-    print("Bot ulandi. Har 10 soniyada manbani tekshirmoqda...")
-    last_id = 0 # Boshlang'ich qiymat
+    print("Bot takrorlash rejimida ishga tushdi.")
+    last_sent_id = None
 
     while True:
         try:
-            # Eng oxirgi 1 ta xabarni olamiz
+            # Har safar eng oxirgi xabarni olamiz
             async for message in client.iter_messages(MANBA_ID, limit=1):
-                # Diagnostika uchun log
-                print(f"Manbada topilgan oxirgi xabar ID: {message.id}")
-                
-                if last_id == 0:
-                    last_id = message.id
-                    print("Boshlang'ich nuqta qo'yildi.")
-                elif message.id > last_id:
-                    print(f"YANGI XABAR ANIQLANDI! ID: {message.id}")
+                if isinstance(message, Message):
+                    # Agar bu yangi xabar bo'lsa yoki avvalgisidan farqli bo'lsa
+                    # Yoki shunchaki oxirgi xabarni qayta yuborish uchun:
+                    print(f"Xabar aniqlandi: {message.id}. Guruhlarga yuborilmoqda...")
+                    
                     for target_id in MANZILLAR_ID:
-                        await client.forward_messages(target_id, message)
-                    last_id = message.id
-                else:
-                    print("Yangi xabar yo'q.")
+                        try:
+                            # Forward o'rniga send_message/edit ishlatish mumkin, 
+                            # lekin oddiy forward har doim ham ishlaydi:
+                            await client.forward_messages(target_id, message)
+                            await asyncio.sleep(0.5)
+                        except Exception as e:
+                            print(f"Yuborishda xato: {e}")
+                    
+                    last_sent_id = message.id
         except Exception as e:
             print(f"Xatolik: {e}")
             
-        await asyncio.sleep(10)
+        await asyncio.sleep(10) # ROPA-ROSA 10 soniya interval
 
 if __name__ == '__main__':
     Thread(target=run_web, daemon=True).start()
