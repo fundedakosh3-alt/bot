@@ -29,7 +29,7 @@ if not STRING_SESSION:
 
 MANBA_ID = -1004423905908         
 MANZILLAR_ID = [-1003922838589, -1002179183026]
-INTERVAL_SEKUND = 30              
+INTERVAL_SEKUND = 10              
 
 async def start_bot():
     # Python 3.14+ uchun yangi event loop yaratib olamiz va uni bog'laymiz
