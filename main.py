@@ -15,7 +15,6 @@ def home():
     return "Bot muvaffaqiyatli ishlamoqda!"
 
 def run_web():
-    # Render o'zi beradigan PORT o'zgaruvchisini o'qiydi
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
@@ -32,10 +31,16 @@ MANBA_ID = -1004423905908
 MANZILLAR_ID = [-1003922838589, -1002179183026]
 INTERVAL_SEKUND = 30              
 
-client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
-
-async def main():
+async def start_bot():
+    # Python 3.14+ uchun yangi event loop yaratib olamiz va uni bog'laymiz
+    loop = asyncio.get_running_loop()
+    
+    # TelegramClient obyektini aynan loop ichida yaratamiz (xatolikni yo'qotadi)
+    client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH, loop=loop)
+    
+    print("Telegramga ulanish urinishi boshlanmoqda...")
     await client.connect()
+    
     if not await client.is_user_authorized():
         print("❌ XATO: Sessiya kaliti noto'g'ri!")
         return
@@ -63,6 +68,7 @@ async def main():
 
 if __name__ == '__main__':
     # Veb-serverni alohida oqimda (thread) yurgizamiz
-    Thread(target=run_web).start()
-    # Asosiy botni ishga tushiramiz
-    client.loop.run_until_complete(main())
+    Thread(target=run_web, daemon=True).start()
+    
+    # Asosiy botni asyncio.run yordamida toza ishga tushiramiz
+    asyncio.run(start_bot())
