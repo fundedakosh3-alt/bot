@@ -1,83 +1,68 @@
 import asyncio
 import os
 import sys
+from flask import Flask
+from threading import Thread
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.patched import Message
-from telethon.errors import ChatWriteForbiddenError, ChannelPrivateError, FloodWaitError
 
-# API ma'lumotlar
+# Render uchun kichik soxta veb-server (bepul tarif talabi)
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot muvaffaqiyatli ishlamoqda!"
+
+def run_web():
+    # Render o'zi beradigan PORT o'zgaruvchisini o'qiydi
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# API va sozlamalar
 API_ID = 34452379
 API_HASH = '25dae3c45785a28864f4a594a296e128'
-
-# Xavfsizlik uchun ulanish kalitini Render tizimidan yashirincha o'qiymiz
 STRING_SESSION = os.getenv("TG_STRING_SESSION")
 
 if not STRING_SESSION:
-    print("❌ XATO: TG_STRING_SESSION muhit o'zgaruvchisi topilmadi!")
+    print("❌ XATO: TG_STRING_SESSION topilmadi!")
     sys.exit(1)
 
-# Siz bergan ID raqamlar (-100 prefiksi bilan)
-MANBA_ID = -1004423905908         # 4423905908 - xabar olinadigan joy
+MANBA_ID = -1004423905908         
+MANZILLAR_ID = [-1003922838589, -1002179183026]
+INTERVAL_SEKUND = 30              
 
-MANZILLAR_ID = [
-    -1003922838589,               # 3922838589 - yuboriladigan 1-guruh
-    -1002179183026                # 2179183026 - yuboriladigan 2-guruh
-]
-
-INTERVAL_SEKUND = 30              # Har 30 soniyada yangi xabarlarni tekshiradi
-
-# To'g'ridan-to'g'ri StringSession orqali yaratamiz (Proksi shart emas)
 client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
 async def main():
-    print("Telegramga ulanish urinishi boshlanmoqda...")
     await client.connect()
-    
     if not await client.is_user_authorized():
-        print("❌ XATO: Sessiya kaliti noto'g'ri yoki muddati o'tgan!")
+        print("❌ XATO: Sessiya kaliti noto'g'ri!")
         return
         
-    print("🎉 Muvaffaqiyatli ulandi! Render serverida ishga tushdi.")
-    print(f"📥 Manba: {MANBA_ID} | 📤 Manzillar: {MANZILLAR_ID}\n")
-
-    # Oxirgi yuborilgan xabar ID sini eslab qolish uchun
+    print("🎉 Bepul Web Service'da muvaffaqiyatli ishga tushdi!")
     last_forwarded_id = None
 
     while True:
         try:
-            # Manba chatdan eng oxirgi xabarni olamiz
             async for message in client.iter_messages(MANBA_ID, limit=1):
-                if isinstance(message, Message):
-                    
-                    # Agar bu xabar yangi bo'lsa (avval yuborilmagan bo'lsa)
-                    if message.id != last_forwarded_id:
-                        print(f"\n[Yangi Xabar] ID: {message.id} aniqlandi. Guruhlarga uzatilmoqda...")
-                        
-                        # Guruhlarga navbat bilan yuborish
-                        for target_id in MANZILLAR_ID:
-                            try:
-                                await client.forward_messages(target_id, message)
-                                print(f" -> [YUBORILDI] -> {target_id}")
-                                await asyncio.sleep(1.5) # Spam filtrga tushmaslik uchun
-                            except ChatWriteForbiddenError:
-                                print(f" -> [XATO] {target_id} guruhiga yozish huquqingiz yo'q!")
-                            except ChannelPrivateError:
-                                print(f" -> [XATO] {target_id} guruhiga kirish taqiqlangan!")
-                            except FloodWaitError as e:
-                                print(f" -> [LIMIT] Telegram cheklov qo'ydi. {e.seconds} soniya kutish kerak.")
-                                await asyncio.sleep(e.seconds)
-                        
-                        # Oxirgi xabar ID sini yangilaymiz
-                        last_forwarded_id = message.id
-                    else:
-                        print(".", end="", flush=True) # Yangi xabar yo'qligini bildirish uchun
-                    
+                if isinstance(message, Message) and message.id != last_forwarded_id:
+                    for target_id in MANZILLAR_ID:
+                        try:
+                            await client.forward_messages(target_id, message)
+                            await asyncio.sleep(1.5)
+                        except Exception as e:
+                            print(f"Xato: {e}")
+                    last_forwarded_id = message.id
+                else:
+                    print(".", end="", flush=True)
         except Exception as e:
-            print(f"\n❌ Xatolik yuz berdi: {e}")
-
-        # Belgilangan vaqt bo'yicha kutish
+            print(f"Xatolik: {e}")
+            
         await asyncio.sleep(INTERVAL_SEKUND)
 
 if __name__ == '__main__':
+    # Veb-serverni alohida oqimda (thread) yurgizamiz
+    Thread(target=run_web).start()
+    # Asosiy botni ishga tushiramiz
     client.loop.run_until_complete(main())
