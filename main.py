@@ -8,7 +8,7 @@ from telethon.sessions import StringSession
 from telethon.tl.patched import Message
 
 # ==========================================
-# 1. RENDER UCHUN VEB-SERVER (BEPUL TARIF)
+# 1. VEB-SERVER (RENDER UCHUN)
 # ==========================================
 app = Flask('')
 
@@ -21,15 +21,14 @@ def run_web():
     app.run(host='0.0.0.0', port=port)
 
 # ==========================================
-# 2. SOZLAMALAR VA ID RAQAMLAR
+# 2. SOZLAMALAR
 # ==========================================
 API_ID = 34452379
 API_HASH = '25dae3c45785a28864f4a594a296e128'
-
 STRING_SESSION = os.getenv("TG_STRING_SESSION")
 
 if not STRING_SESSION:
-    print("❌ XATO: TG_STRING_SESSION muhit o'zgaruvchisi topilmadi!")
+    print("❌ XATO: TG_STRING_SESSION topilmadi!")
     sys.exit(1)
 
 MANBA_ID = -1004423905908         
@@ -37,7 +36,7 @@ MANZILLAR_ID = [-1003922838589, -1002179183026]
 INTERVAL_SEKUND = 10              
 
 # ==========================================
-# 3. ASOSIY ASINXRON BOT FUNKSIYASI
+# 3. ASOSIY BOT LOGIKASI
 # ==========================================
 async def start_bot():
     loop = asyncio.get_running_loop()
@@ -52,45 +51,47 @@ async def start_bot():
         
     print(f"🎉 Bot muvaffaqiyatli ishga tushdi! Har {INTERVAL_SEKUND} soniyada tekshiriladi.")
     
-    # Oxirgi yuborilgan xabar ID sini saqlash uchun o'zgaruvchi
     last_forwarded_id = None
 
     while True:
         try:
-            # Manba guruhdan faqat eng oxirgi 1 ta xabarni olamiz
-            async for message in client.iter_messages(MANBA_ID, limit=1):
-                if isinstance(message, Message):
-                    
-                    # 📌 ENG MUHIM QISM: Agar bot hozirgina o'chib-yongandagi birinchi qadam bo'lsa
-                    if last_forwarded_id is None:
-                        last_forwarded_id = message.id
-                        print(f"📌 Boshlang'ich nuqta belgilandi. Oxirgi eski xabar ID: {last_forwarded_id} (Bu xabar qayta yuborilmaydi).")
-                        continue # Keyingi 10 soniyalik siklga o'tib ketadi va eski xabarni yubormaydi
-                    
-                    # Faqat guruhga yangi xabar tushsa (ID si biz eslab qolgan nuqtadan katta bo'lsa) yuboradi
-                    if message.id > last_forwarded_id:
-                        print(f"\n[Yangi xabar aniqlandi] ID: {message.id}. Guruhlarga uzatilmoqda...")
-                        
-                        for target_id in MANZILLAR_ID:
-                            try:
-                                await client.forward_messages(target_id, message)
-                                print(f" -> [OK] -> {target_id}")
-                                await asyncio.sleep(1.0)
-                            except Exception as e:
-                                print(f" -> Xato ({target_id}): {e}")
+            # 10 soniya ichida kelgan bo'lishi mumkin bo'lgan oxirgi 15 ta xabarni olamiz
+            messages = await client.get_messages(MANBA_ID, limit=15)
+            
+            if messages:
+                # 1-QADAM: Bot endi yonganda eng oxirgi eski xabar ID sini eslab qoladi va yubormaydi
+                if last_forwarded_id is None:
+                    last_forwarded_id = messages[0].id
+                    print(f"📌 Boshlang'ich nuqta belgilandi (ID: {last_forwarded_id}). Eski xabarlar tegmaymiz.")
+                
+                # 2-QADAM: Xabarlarni eskidan yangiga qarab tekshiramiz
+                else:
+                    for message in reversed(messages):
+                        if isinstance(message, Message):
+                            # Faqat rostdan ham yangi bo'lgan (ID katta) xabarlar o'tadi
+                            if message.id > last_forwarded_id:
+                                print(f"\n✅ [YANGI XABAR] ID: {message.id} -> Guruhlarga uzatilmoqda...")
                                 
-                        # Oxirgi ID ni yangilaymiz
-                        last_forwarded_id = message.id
+                                for target_id in MANZILLAR_ID:
+                                    try:
+                                        await client.forward_messages(target_id, message)
+                                        print(f" -> [OK] -> {target_id}")
+                                        await asyncio.sleep(1.0)
+                                    except Exception as e:
+                                        print(f" -> Xato ({target_id}): {e}")
+                                        
+                                # Oxirgi muvaffaqiyatli xabar ID sini yangilaymiz
+                                last_forwarded_id = message.id
             
             print(".", end="", flush=True)
             
         except Exception as e:
-            print(f"\n❌ Xatolik yuz berdi: {e}")
+            print(f"\n❌ Xatolik: {e}")
             
         await asyncio.sleep(INTERVAL_SEKUND)
 
 # ==========================================
-# 4. DASTURNI ISHGA TUSHIRISH NUQTASI
+# 4. ISHGA TUSHIRISH
 # ==========================================
 if __name__ == '__main__':
     Thread(target=run_web, daemon=True).start()
